@@ -9,6 +9,49 @@ CloudQuery extracts, transforms, and loads configuration from cloud APIs to
 variety of supported destinations such as databases, data lakes, or streaming platforms
 for further analysis.
 
+### Ormi Labs Changes
+
+To run it with changes made to `source/postgresql` and `destication/bigquery` build selected plugin with
+
+```shell
+./scripts/build.sh
+```
+
+Create yaml config files for source and destination respectively pointing them to the local bin directory.
+Examples:
+
+```yaml
+kind: source
+spec:
+  name: "postgresql"
+  registry: "local"
+  path: "../bin/postgresql"
+  version: "v3.0.0"
+  tables: ["blocks"]
+  destinations: ["bigquery"]
+  spec:
+    connection_string: "postgresql://user:pass@host:port/db?sslmode=disable"
+```
+
+```yaml
+kind: destination
+spec:
+  name: bigquery
+  registry: "local"
+  path: "../bin/bigquery"
+  version: "v3.3.0"
+  write_mode: "append"
+  spec:
+    project_id: temporal-wares-368022
+    dataset_id: ethblocks_svr6_dev
+```
+
+Run from **_cloudquery/cli_** directory the following command:
+
+```shell
+go run main.go sync /path/to/dir/where/source/and/dest/yaml/conf/files/stored
+```
+
 ### Installation
 
 See the **[Quickstart guide](https://www.cloudquery.io/docs/quickstart)** for instructions how to start syncing data with CloudQuery.
