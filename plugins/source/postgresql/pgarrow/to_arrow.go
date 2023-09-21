@@ -45,10 +45,13 @@ func Pg10ToArrow(t string) arrow.DataType {
 		return arrow.PrimitiveTypes.Int32
 	case "bigint", "int8":
 		return arrow.PrimitiveTypes.Int64
-	case "numeric(20,0)":
-		// special case.
-		// TODO: add Decimal128/256 support
+	case "numeric(20,0)": // uint64
 		return arrow.PrimitiveTypes.Uint64
+	case "numeric":
+		// This is just a workaround to sync numerics
+		// between PostgeSQL and BigQuery.
+		decimal128, _ := arrow.NewDecimalType(arrow.DECIMAL128, 0, 0)
+		return decimal128
 	case "double precision", "float8":
 		return arrow.PrimitiveTypes.Float64
 	case "real", "float4":
@@ -67,6 +70,9 @@ func Pg10ToArrow(t string) arrow.DataType {
 		return cqtypes.ExtensionTypes.Inet
 	case "date":
 		return arrow.FixedWidthTypes.Date32
+	case "decimal":
+		// TODO: add Decimal128/256 support
+		fallthrough
 	default:
 		return arrow.BinaryTypes.String
 	}
