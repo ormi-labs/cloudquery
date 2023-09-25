@@ -2,9 +2,9 @@ package client
 
 import (
 	"database/sql/driver"
-	"github.com/apache/arrow/go/v14/arrow/decimal128"
-
 	"github.com/apache/arrow/go/v14/arrow"
+	"github.com/apache/arrow/go/v14/arrow/decimal128"
+	"github.com/apache/arrow/go/v14/arrow/decimal256"
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
@@ -53,6 +53,14 @@ func transformerForDataType(dt arrow.DataType) transformer {
 			}
 			t := v.(pgtype.Numeric).Int
 			return decimal128.FromBigInt(t), nil
+		}
+	case *arrow.Decimal256Type:
+		return func(v any) (any, error) {
+			if v == nil {
+				return nil, nil
+			}
+			t := v.(pgtype.Numeric).Int
+			return decimal256.FromBigInt(t), nil
 		}
 	default:
 		return func(v any) (any, error) {
