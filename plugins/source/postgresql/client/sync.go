@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"github.com/cloudquery/cloudquery/plugins/source/postgresql/client/sql"
 	"strings"
+	"time"
 
 	"github.com/apache/arrow/go/v14/arrow"
 	"github.com/apache/arrow/go/v14/arrow/array"
@@ -45,6 +47,8 @@ func (c *Client) Sync(ctx context.Context, options plugin.SyncOptions, res chan<
 	if err != nil {
 		return err
 	}
+
+	filteredTables = append(filteredTables, initSyncsTable())
 
 	for _, table := range filteredTables {
 		res <- &message.SyncMigrateTable{
@@ -120,7 +124,7 @@ func (c *Client) syncTables(ctx context.Context, snapshotName string, filteredTa
 		}
 	case "block":
 		// syncBlock is altered method to process blockchain data in orderly fashion
-		if err := c.syncBlock(ctx, tx, filteredTables, res); err != nil {
+		if err := c.syncBlocks(ctx, tx, filteredTables, res); err != nil {
 			return err
 		}
 	}
@@ -161,9 +165,10 @@ func (c *Client) query(ctx context.Context, entity *entity, sql string, args ...
 	return nil
 }
 
-func (c *Client) syncBlock(ctx context.Context, tx pgx.Tx, tables []*schema.Table, res chan<- message.SyncMessage) error {
+func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Table, res chan<- message.SyncMessage) error {
 	entities := make(map[EntityName]*entity)
 	valid := false
+
 LOOP:
 	for _, e := range c.pluginSpec.Entities {
 		if e.Enabled {
@@ -199,38 +204,67 @@ LOOP:
 		return fmt.Errorf("no block entity specified in %q sync mode", "block")
 	}
 
-	// block
-	sql1 := `SELECT $1 FROM blocks ORDER BY $2 ASC LIMIT 10` // TODO
-	args1 := []any{
-		strings.Join(entities[EntBlock].colNames, ","),
-		//pgx.Identifier{entities[EntBlock].tableName}.Sanitize(),
-		pgx.Identifier{"number"}.Sanitize(),
-		//"number",
-	}
-	// transaction
-	sql2 := `SELECT $1 FROM transactions WHERE $3 = $4`
-	args2 := []any{
-		strings.Join(entities[EntTransaction].colNames, ","),
-		//pgx.Identifier{entities[EntTransaction].tableName}.Sanitize(),
-		pgx.Identifier{"block_hash"}.Sanitize(),
-		//"block_hash",
+	var (
+		syncsSchema  *arrow.Schema
+		syncsBuilder *array.RecordBuilder
+		//missed       any
+		last_synced any
+	)
+
+	for _, table := range tables {
+		if table.Name == "syncs" {
+			syncsSchema = table.ToArrowSchema()
+			syncsBuilder = array.NewRecordBuilder(memory.DefaultAllocator, syncsSchema)
+		}
 	}
 
-	blocks, err := tx.Query(ctx, sql1, args1...)
+	// block
+	builder := new(sql.Select)
+	blockSQL, err := builder.
+		Select(entities[EntBlock].colNames...).
+		From(pgx.Identifier{entities[EntBlock].tableName}.Sanitize()).
+		Limit(int64(c.pluginSpec.Limit)).
+		ToSQL()
+	if err != nil {
+		return fmt.Errorf("build query error: %v", err)
+	}
+	c.logger.Info().Str("SQL", blockSQL).Msg("block SQL")
+
+	// transaction
+	builder = new(sql.Select)
+	txSQL, err := builder.
+		Select(entities[EntTransaction].colNames...).
+		From(pgx.Identifier{entities[EntTransaction].tableName}.Sanitize()).
+		Where("block_hash", "=", "$1").
+		ToSQL()
+	if err != nil {
+		return fmt.Errorf("build query error: %v", err)
+	}
+	c.logger.Info().Str("SQL", txSQL).Msg("transaction SQL")
+
+	// TODO logs
+	// TODO traces
+
+	blocks, err := tx.Query(ctx, blockSQL)
 	if err != nil {
 		return err
 	}
 	defer blocks.Close()
 
-	var hashPos int
-
+	var (
+		hashIdx   int
+		numberIdx int
+	)
 	for i, fd := range blocks.FieldDescriptions() {
-		if fd.Name == "hash" {
-			hashPos = i
+		switch fd.Name {
+		case "hash":
+			hashIdx = i
+		case "number":
+			numberIdx = i
 		}
 	}
 
-	for i := 0; blocks.Next(); i++ {
+	for blocks.Next() {
 		values, err := blocks.Values()
 		if err != nil {
 			return err
@@ -250,20 +284,38 @@ LOOP:
 			scalar.AppendToBuilder(entities[EntBlock].recBuilder.Field(i), s)
 		}
 
-		// TODO "misses" table
+		c.logger.Info().Msg(values[hashIdx].(string))
 
 		// transaction
-		c.query(ctx, entities[EntTransaction], sql2, append(args2, hashPos)...)
+		//c.query(ctx, entities[EntTransaction], txSQL)
+		c.query(ctx, entities[EntTransaction], txSQL, values[hashIdx])
 		res <- &message.SyncInsert{Record: entities[EntTransaction].recBuilder.NewRecord()}
 
 		// NewRecord resets the builder for reuse
 		res <- &message.SyncInsert{Record: entities[EntBlock].recBuilder.NewRecord()}
 
-		if c.pluginSpec.Limit > 0 && (i+1) == c.pluginSpec.Limit {
-			return nil // exit
-		}
+		last_synced = values[numberIdx]
 	}
 
+	syncColumnValues[idxTimestamp].value = time.Now()
+	syncColumnValues[idxMissedBlockNumbers].value = "TODO"
+	syncColumnValues[idxLastSyncedBlockNumber].value = fmt.Sprintf("%v", last_synced)
+	if err := c.syncSync(res, syncsSchema, syncsBuilder, syncColumnValues); err != nil {
+		return fmt.Errorf("sync sync error: %v", err)
+	}
+
+	return nil
+}
+
+func (c *Client) syncSync(res chan<- message.SyncMessage, schema *arrow.Schema, builder *array.RecordBuilder, vals []syncColumn) error {
+	for i, val := range vals {
+		s := scalar.NewScalar(schema.Field(i).Type)
+		if err := s.Set(val.value); err != nil {
+			return err
+		}
+		scalar.AppendToBuilder(builder.Field(i), s)
+	}
+	res <- &message.SyncInsert{Record: builder.NewRecord()}
 	return nil
 }
 
