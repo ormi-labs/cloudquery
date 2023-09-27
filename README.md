@@ -24,13 +24,37 @@ Examples:
 kind: source
 spec:
   name: "postgresql"
+  # registry: "github"
+  # path: "cloudquery/postgresql"
   registry: "local"
   path: "../bin/postgresql"
   version: "v3.0.0"
-  tables: ["blocks"]
+  tables: ["block","transaction","transaction_log","trace"]
   destinations: ["bigquery"]
   spec:
     connection_string: "postgresql://user:pass@host:port/db?sslmode=disable"
+    # Optional parameters:
+    # cdc_id: "postgresql" # Set to a unique string per source to enable Change Data Capture mode (logical replication, or CDC)
+    pgx_log_level: error
+    rows_per_record: 1
+    sync_mode: "block" # "block" or "table", default is table
+    limit: 10 # limit number of blocks, default 0 which is no limitation at all
+    entities:          # see https://ethereum-etl.readthedocs.io/en/latest/commands/
+      - name: "block"
+        table: "block"
+        enable: true
+      - name: "transaction"
+        table: "transaction"
+        enable: true
+      - name: "log"
+        table: "transaction_log"
+        enable: true
+      - name: "trace"
+        table: "trace"
+        enable: true
+      - name: "token_transfer"
+        table: ""
+        enable: false
 ```
 
 ```yaml

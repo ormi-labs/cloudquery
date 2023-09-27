@@ -7,8 +7,10 @@ import (
 
 const (
 	idxTimestamp = iota
-	idxMissedBlockNumbers
-	idxLastSyncedBlockNumber
+	idxMissedBlocks
+	idxLastSyncedBlock
+	idxEachSyncedBlock
+	idxTimeElapsed
 )
 
 type syncColumn struct {
@@ -23,11 +25,19 @@ var syncColumnValues = []syncColumn{
 		desc: "TODO",
 	},
 	{
-		name: "missed_block_numbers",
+		name: "missed_blocks",
 		desc: "TODO",
 	},
 	{
-		name: "last_synced_block_number",
+		name: "last_synced_block",
+		desc: "TODO",
+	},
+	{
+		name: "each_synced_block",
+		desc: "TODO",
+	},
+	{
+		name: "time_elapsed",
 		desc: "TODO",
 	},
 }
@@ -35,32 +45,47 @@ var syncColumnValues = []syncColumn{
 func initSyncsTable() *schema.Table {
 	table := new(schema.Table)
 	table.Name = "syncs"
-	table.Description = "sync statistics"
+	table.Description = "sync run report"
 	table.Columns = schema.ColumnList{
 		schema.Column{
 			Name:           syncColumnValues[idxTimestamp].name,
 			Description:    syncColumnValues[idxTimestamp].desc,
-			NotNull:        false,
+			NotNull:        true,
 			IncrementalKey: false,
 			PrimaryKey:     false,
 			Type:           arrow.FixedWidthTypes.Timestamp_us,
 		},
 		schema.Column{
-			Name:           syncColumnValues[idxMissedBlockNumbers].name,
-			Description:    syncColumnValues[idxMissedBlockNumbers].desc,
+			Name:           syncColumnValues[idxMissedBlocks].name,
+			Description:    syncColumnValues[idxMissedBlocks].desc,
 			NotNull:        true,
 			IncrementalKey: false,
 			PrimaryKey:     false,
 			Type:           arrow.BinaryTypes.String,
 		},
 		schema.Column{
-			Name:           syncColumnValues[idxLastSyncedBlockNumber].name,
-			Description:    syncColumnValues[idxLastSyncedBlockNumber].desc,
+			Name:           syncColumnValues[idxLastSyncedBlock].name,
+			Description:    syncColumnValues[idxLastSyncedBlock].desc,
+			NotNull:        true,
+			IncrementalKey: false,
+			PrimaryKey:     false,
+			Type:           &arrow.Decimal128Type{},
+		},
+		schema.Column{
+			Name:           syncColumnValues[idxEachSyncedBlock].name,
+			Description:    syncColumnValues[idxEachSyncedBlock].desc,
 			NotNull:        true,
 			IncrementalKey: false,
 			PrimaryKey:     false,
 			Type:           arrow.BinaryTypes.String,
-			//Type:           arrow.NumericFieldType, // TODO
+		},
+		schema.Column{
+			Name:           syncColumnValues[idxTimeElapsed].name,
+			Description:    syncColumnValues[idxTimeElapsed].desc,
+			NotNull:        true,
+			IncrementalKey: false,
+			PrimaryKey:     false,
+			Type:           arrow.BinaryTypes.String,
 		},
 	}
 	return table
