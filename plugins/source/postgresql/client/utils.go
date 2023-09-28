@@ -1,6 +1,9 @@
 package client
 
 import (
+	"fmt"
+	"github.com/apache/arrow/go/v14/arrow"
+	"github.com/jackc/pgx/v5/pgtype"
 	"strconv"
 	"strings"
 	"time"
@@ -63,4 +66,23 @@ func FmtElapsedTime(then time.Time, now time.Time, sep string, end bool) string 
 	}
 
 	return strings.Join(parts, sep) + text
+}
+
+func stringForTime(t pgtype.Time, unit arrow.TimeUnit) string {
+	extra := ""
+	hour := t.Microseconds / 1e6 / 60 / 60
+	minute := t.Microseconds / 1e6 / 60 % 60
+	second := t.Microseconds / 1e6 % 60
+	micros := t.Microseconds % 1e6
+	switch unit {
+	case arrow.Millisecond:
+		extra = fmt.Sprintf(".%03d", (micros)/1e3)
+	case arrow.Microsecond:
+		extra = fmt.Sprintf(".%06d", micros)
+	case arrow.Nanosecond:
+		// postgres doesn't support nanosecond precision
+		extra = fmt.Sprintf(".%06d", micros)
+	}
+
+	return fmt.Sprintf("%02d:%02d:%02d"+extra, hour, minute, second)
 }

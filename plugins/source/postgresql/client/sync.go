@@ -4,10 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/apache/arrow/go/v14/arrow/decimal128"
-	"github.com/cloudquery/cloudquery/plugins/source/postgresql/client/sql"
+	"strconv"
 	"strings"
 	"time"
+
+	"github.com/apache/arrow/go/v14/arrow/decimal128"
+	"github.com/cloudquery/cloudquery/plugins/source/postgresql/client/sql"
 
 	"github.com/apache/arrow/go/v14/arrow"
 	"github.com/apache/arrow/go/v14/arrow/array"
@@ -17,7 +19,6 @@ import (
 	"github.com/cloudquery/plugin-sdk/v4/scalar"
 	"github.com/cloudquery/plugin-sdk/v4/schema"
 	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type entity struct {
@@ -109,7 +110,7 @@ func (c *Client) syncTables(ctx context.Context, snapshotName string, filteredTa
 		}
 	}
 
-	c.logger.Info().Any("entities", c.pluginSpec.Entities).Msg("enabled entities")
+	c.logger.Info().Any("entities", c.pluginSpec.Block.Entities).Msg("enabled entities")
 
 	names := make([]string, len(filteredTables))
 	for i, table := range filteredTables {
@@ -137,6 +138,7 @@ func (c *Client) syncTables(ctx context.Context, snapshotName string, filteredTa
 	return nil
 }
 
+// deprecated
 func (c *Client) query(ctx context.Context, entity *entity, args ...any) error {
 	rows, err := c.Conn.Query(ctx, entity.sqlStmt, args...)
 	if err != nil {
@@ -168,97 +170,37 @@ func (c *Client) query(ctx context.Context, entity *entity, args ...any) error {
 }
 
 func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Table, res chan<- message.SyncMessage) error {
-	entities := make(map[EntityName]*entity)
-	valid := false
+	c.logger.Info().Str("name", tables[0].Name).Msg("table name")
+	c.logger.Info().Str("name", tables[1].Name).Msg("table name")
+	c.logger.Info().Str("name", tables[2].Name).Msg("table name")
+	c.logger.Info().Str("name", tables[3].Name).Msg("table name")
 
-LOOP:
-	for _, e := range c.pluginSpec.Entities {
-		if e.Enabled {
-			for _, table := range tables {
-				if table.Name == e.Table {
-					arrowSchema := table.ToArrowSchema()
-					entities[e.Name] = &entity{
-						tableName:    table.Name,
-						arrowSchema:  arrowSchema,
-						recBuilder:   array.NewRecordBuilder(memory.DefaultAllocator, arrowSchema),
-						transformers: transformersForSchema(arrowSchema),
-						colNames:     make([]string, len(table.Columns)),
-					}
-					for i, col := range table.Columns {
-						entities[e.Name].colNames[i] = pgx.Identifier{col.Name}.Sanitize()
-					}
-
-					var err error
-
-					switch e.Name {
-					case EntBlock:
-						// there has to be block entity
-						valid = true
-
-						builder := new(sql.Select)
-						entities[e.Name].sqlStmt, err = builder.
-							Select(entities[EntBlock].colNames...).
-							From(pgx.Identifier{entities[EntBlock].tableName}.Sanitize()).
-							Limit(int64(c.pluginSpec.Limit)).
-							ToSQL()
-						if err != nil {
-							return fmt.Errorf("build query error: %v", err)
-						}
-						c.logger.Info().Str("SQL", entities[e.Name].sqlStmt).Msg("block SQL")
-					case EntTransaction:
-						builder := new(sql.Select)
-						entities[e.Name].sqlStmt, err = builder.
-							Select(entities[EntTransaction].colNames...).
-							From(pgx.Identifier{entities[EntTransaction].tableName}.Sanitize()).
-							Where("block_number", "=", "$1").
-							ToSQL()
-						if err != nil {
-							return fmt.Errorf("build query error: %v", err)
-						}
-						c.logger.Info().Str("SQL", entities[e.Name].sqlStmt).Msg("transaction SQL")
-					case EntLog:
-						builder := new(sql.Select)
-						entities[e.Name].sqlStmt, err = builder.
-							Select(entities[EntLog].colNames...).
-							From(pgx.Identifier{entities[EntLog].tableName}.Sanitize()).
-							Where("block_number", "=", "$1").
-							ToSQL()
-						if err != nil {
-							return fmt.Errorf("build query error: %v", err)
-						}
-						c.logger.Info().Str("SQL", entities[e.Name].sqlStmt).Msg("log SQL")
-					case EntTrace:
-						builder := new(sql.Select)
-						entities[e.Name].sqlStmt, err = builder.
-							Select(entities[EntTrace].colNames...).
-							From(pgx.Identifier{entities[EntTrace].tableName}.Sanitize()).
-							Where("block_number", "=", "$1").
-							ToSQL()
-						if err != nil {
-							return fmt.Errorf("build query error: %v", err)
-						}
-						c.logger.Info().Str("SQL", entities[e.Name].sqlStmt).Msg("trace SQL")
-					}
-					continue LOOP
-				}
-			}
-			// no table
-			return fmt.Errorf("no/wrong table specified for %q entity", e.Name)
-		} else {
-			entities[e.Name] = nil
-		}
+	type missedArgs struct {
+		prev uint64
 	}
 
-	if !valid {
-		return fmt.Errorf("no block entity specified in %q sync mode", "block")
+	var missedVals = missedArgs{}
+
+	calcMissed := func(num uint64) string {
+		switch d := num - missedVals.prev; {
+		case d == 1:
+			return "" // Ok
+		case d == 2:
+			return strconv.FormatUint(missedVals.prev+1, 10)
+		case d > 2:
+			return strconv.FormatUint(missedVals.prev+1, 10) + "-" +
+				strconv.FormatUint(num-1, 10)
+		}
+		return ""
 	}
 
 	var (
-		syncsSchema  *arrow.Schema
-		syncsBuilder *array.RecordBuilder
-		lastSynced   decimal128.Num
-		eachSynced   strings.Builder
-		//missedBlocks string TODO
+		syncsSchema     *arrow.Schema
+		syncsBuilder    *array.RecordBuilder
+		lastSynced      decimal128.Num
+		eachSynced      strings.Builder
+		enabledEntities []string
+		missedBlocks    string // Ex.: 3, 5, 6, 8, 91-92, 145-156
 	)
 
 	for _, table := range tables {
@@ -268,9 +210,114 @@ LOOP:
 		}
 	}
 
+	tableInit := func(table *schema.Table) (name string, schema *arrow.Schema,
+		builder *array.RecordBuilder, transformers []transformer, colNames []string) {
+		name = table.Name
+		schema = table.ToArrowSchema()
+		builder = array.NewRecordBuilder(memory.DefaultAllocator, schema)
+		transformers = transformersForSchema(schema)
+		colNames = make([]string, len(table.Columns))
+		for i, col := range table.Columns {
+			colNames[i] = pgx.Identifier{col.Name}.Sanitize()
+		}
+		return
+	}
+
+	blockName, blockSchema, blockBuilder, blockTransformers, blockColNames :=
+		tableInit(tables[c.pluginSpec.Block.TableIdx])
+
+	blockSQL, err := new(sql.Select).
+		Select(blockColNames...).
+		From(pgx.Identifier{blockName}.Sanitize()).
+		Where("number", ">=", strconv.FormatUint(c.pluginSpec.Block.Start, 10)).
+		Order("number").
+		Limit(int64(c.pluginSpec.Block.Limit)).
+		ToSQL()
+	if err != nil {
+		return fmt.Errorf("build query error: %v", err)
+	}
+	c.logger.Info().Str("SQL", blockSQL).Msg("block SQL")
+
+	entities := make(map[EntityName]*entity)
+	for _, e := range c.pluginSpec.Block.Entities {
+		if e.Enabled {
+			enabledEntities = append(enabledEntities, e.Name.String())
+			table := tables[e.TableIdx]
+
+			entities[e.Name] = &entity{}
+			entities[e.Name].tableName,
+				entities[e.Name].arrowSchema,
+				entities[e.Name].recBuilder,
+				entities[e.Name].transformers,
+				entities[e.Name].colNames =
+				tableInit(table)
+
+			switch e.Name {
+			case EntTransaction:
+				builder := new(sql.Select)
+				entities[e.Name].sqlStmt, err = builder.
+					Select(entities[EntTransaction].colNames...).
+					From(pgx.Identifier{entities[EntTransaction].tableName}.Sanitize()).
+					Where("block_number", "=", "$1").
+					ToSQL()
+				if err != nil {
+					return fmt.Errorf("build query error: %v", err)
+				}
+				c.logger.Info().Str("SQL", entities[e.Name].sqlStmt).Msg("transaction SQL")
+			case EntLog:
+				builder := new(sql.Select)
+				entities[e.Name].sqlStmt, err = builder.
+					Select(entities[EntLog].colNames...).
+					From(pgx.Identifier{entities[EntLog].tableName}.Sanitize()).
+					Where("block_number", "=", "$1").
+					ToSQL()
+				if err != nil {
+					return fmt.Errorf("build query error: %v", err)
+				}
+				c.logger.Info().Str("SQL", entities[e.Name].sqlStmt).Msg("log SQL")
+			case EntTrace:
+				builder := new(sql.Select)
+				entities[e.Name].sqlStmt, err = builder.
+					Select(entities[EntTrace].colNames...).
+					From(pgx.Identifier{entities[EntTrace].tableName}.Sanitize()).
+					Where("block_number", "=", "$1").
+					ToSQL()
+				if err != nil {
+					return fmt.Errorf("build query error: %v", err)
+				}
+				c.logger.Info().Str("SQL", entities[e.Name].sqlStmt).Msg("trace SQL")
+			}
+		}
+	}
+
 	start := time.Now()
 
-	blocks, err := tx.Query(ctx, entities[EntBlock].sqlStmt)
+	defer func() {
+		syncColumnValues[idxTimestamp].value = time.Now()
+		syncColumnValues[idxStartBlock].value = c.pluginSpec.Block.Start
+		syncColumnValues[idxEnabledEntities].value = strings.Join(enabledEntities, ",")
+		syncColumnValues[idxTimeElapsed].value = FmtElapsedTime(start, time.Now(), " ", false)
+		syncColumnValues[idxLastSyncedBlock].value = lastSynced
+		syncColumnValues[idxEachSyncedBlock].value = eachSynced.String()
+		syncColumnValues[idxMissedBlocks].value = missedBlocks
+
+		if err := c.syncSync(res, syncsSchema, syncsBuilder, syncColumnValues); err != nil {
+			c.logger.Error().Err(err).Msg("sync sync error")
+		}
+	}()
+
+	qp := queryPool{
+		entities: entities,
+		conn:     c.Conn,
+		in:       make(chan query, 1),
+		out:      make(chan error, 1),
+		res:      res,
+	}
+
+	qp.start(ctx)
+	defer qp.stop()
+
+	blocks, err := tx.Query(ctx, blockSQL)
 	if err != nil {
 		return err
 	}
@@ -290,17 +337,17 @@ LOOP:
 		}
 
 		for i, value := range values {
-			val, err := entities[EntBlock].transformers[i](value)
+			val, err := blockTransformers[i](value)
 			if err != nil {
 				return err
 			}
 
-			s := scalar.NewScalar(entities[EntBlock].arrowSchema.Field(i).Type)
+			s := scalar.NewScalar(blockSchema.Field(i).Type)
 			if err := s.Set(val); err != nil {
 				return err
 			}
 
-			scalar.AppendToBuilder(entities[EntBlock].recBuilder.Field(i), s)
+			scalar.AppendToBuilder(blockBuilder.Field(i), s)
 
 			if i == blockNumColIdx {
 				switch v := val.(type) {
@@ -314,41 +361,42 @@ LOOP:
 			}
 		}
 
-		c.logger.Info().Str("number", lastSynced.ToString(0)).Msg("block number")
+		if v := calcMissed(lastSynced.BigInt().Uint64()); v != "" {
+			if missedBlocks != "" {
+				missedBlocks += ","
+			}
+			missedBlocks += v
+		}
 
 		if entities[EntTransaction] != nil {
-			if err := c.query(ctx, entities[EntTransaction], lastSynced.ToString(0)); err != nil {
-				return fmt.Errorf("%s query error: %v", EntTransaction, err)
-			}
-			res <- &message.SyncInsert{Record: entities[EntTransaction].recBuilder.NewRecord()}
+			qp.add(query{
+				entity: EntTransaction,
+				arg1:   lastSynced.ToString(0),
+			})
 		}
 
 		if entities[EntLog] != nil {
-			if err := c.query(ctx, entities[EntLog], lastSynced.ToString(0)); err != nil {
-				return fmt.Errorf("%s query error: %v", EntTransaction, err)
-			}
-			res <- &message.SyncInsert{Record: entities[EntLog].recBuilder.NewRecord()}
+			qp.add(query{
+				entity: EntLog,
+				arg1:   lastSynced.ToString(0),
+			})
 		}
 
 		if entities[EntTrace] != nil {
-			if err := c.query(ctx, entities[EntTrace], lastSynced.ToString(0)); err != nil {
-				return fmt.Errorf("%s query error: %v", EntTransaction, err)
+			qp.add(query{
+				entity: EntTrace,
+				arg1:   lastSynced.ToString(0),
+			})
+		}
+
+		for range entities {
+			if err := <-qp.out; err != nil {
+				return fmt.Errorf("query error: %v", err)
 			}
-			res <- &message.SyncInsert{Record: entities[EntTrace].recBuilder.NewRecord()}
 		}
 
 		// NewRecord resets the builder for reuse
-		res <- &message.SyncInsert{Record: entities[EntBlock].recBuilder.NewRecord()}
-	}
-
-	syncColumnValues[idxTimestamp].value = time.Now()
-	syncColumnValues[idxTimeElapsed].value = FmtElapsedTime(start, time.Now(), " ", false)
-	syncColumnValues[idxLastSyncedBlock].value = lastSynced
-	syncColumnValues[idxEachSyncedBlock].value = eachSynced.String()
-	syncColumnValues[idxMissedBlocks].value = "TODO"
-
-	if err := c.syncSync(res, syncsSchema, syncsBuilder, syncColumnValues); err != nil {
-		return fmt.Errorf("sync sync error: %v", err)
+		res <- &message.SyncInsert{Record: blockBuilder.NewRecord()}
 	}
 
 	return nil
@@ -416,23 +464,4 @@ func (c *Client) syncTable(ctx context.Context, tx pgx.Tx, table *schema.Table, 
 	}
 
 	return nil
-}
-
-func stringForTime(t pgtype.Time, unit arrow.TimeUnit) string {
-	extra := ""
-	hour := t.Microseconds / 1e6 / 60 / 60
-	minute := t.Microseconds / 1e6 / 60 % 60
-	second := t.Microseconds / 1e6 % 60
-	micros := t.Microseconds % 1e6
-	switch unit {
-	case arrow.Millisecond:
-		extra = fmt.Sprintf(".%03d", (micros)/1e3)
-	case arrow.Microsecond:
-		extra = fmt.Sprintf(".%06d", micros)
-	case arrow.Nanosecond:
-		// postgres doesn't support nanosecond precision
-		extra = fmt.Sprintf(".%06d", micros)
-	}
-
-	return fmt.Sprintf("%02d:%02d:%02d"+extra, hour, minute, second)
 }

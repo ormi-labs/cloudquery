@@ -39,6 +39,11 @@ func (b *Select) ToSQL() (string, error) {
 		buf.WriteString(b.whereCond)
 	}
 
+	if b.orderBy != "" {
+		buf.WriteString(" ORDER BY ")
+		buf.WriteString(b.orderBy)
+	}
+
 	if b.limitCount > 0 {
 		buf.WriteString(" LIMIT ")
 		buf.WriteString(fmt.Sprint(b.limitCount))
@@ -59,11 +64,12 @@ func (b *Select) From(table interface{}) *Select {
 }
 
 func (b *Select) Where(arg1, op, arg2 string) *Select {
-	b.whereCond = fmt.Sprint(arg1, op, arg2)
+	b.whereCond = fmt.Sprint(arg1, " ", op, " ", arg2)
 	return b
 }
 
 func (b *Select) Order(by string) *Select {
+	b.orderBy = by
 	return b
 }
 

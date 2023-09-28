@@ -3,16 +3,22 @@ package client
 type EntityName string
 
 const (
-	EntBlock       EntityName = "block"
-	EntTransaction            = "transaction"
+	EntTransaction EntityName = "transaction"
 	EntLog                    = "log"
 	EntTrace                  = "trace"
 )
 
+type Block struct {
+	Limit    int      `json:"limit,omitempty"`
+	Start    uint64   `json:"start,omitempty"`
+	TableIdx int      `json:"table_idx,omitempty"`
+	Entities []Entity `json:"entities,omitempty"`
+}
+
 type Entity struct {
-	Name    EntityName `json:"name,omitempty"`
-	Table   string     `json:"table,omitempty"`
-	Enabled bool       `json:"enable,omitempty"`
+	Name     EntityName `json:"name,omitempty"`
+	TableIdx int        `json:"table_idx,omitempty"`
+	Enabled  bool       `json:"enable,omitempty"`
 }
 
 type Spec struct {
@@ -21,8 +27,7 @@ type Spec struct {
 	CDCId            string   `json:"cdc_id,omitempty"`
 	RowsPerRecord    int      `json:"rows_per_record,omitempty"`
 	SyncMode         string   `json:"sync_mode,omitempty"`
-	Limit            int      `json:"limit,omitempty"`
-	Entities         []Entity `json:"entities,omitempty"`
+	Block            Block    `json:"block,omitempty"`
 }
 
 func (s *Spec) SetDefaults() {
@@ -32,4 +37,8 @@ func (s *Spec) SetDefaults() {
 	if s.SyncMode == "" {
 		s.SyncMode = "table"
 	}
+}
+
+func (en EntityName) String() string {
+	return string(en)
 }

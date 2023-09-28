@@ -7,6 +7,8 @@ import (
 
 const (
 	idxTimestamp = iota
+	idxStartBlock
+	idxEnabledEntities
 	idxMissedBlocks
 	idxLastSyncedBlock
 	idxEachSyncedBlock
@@ -22,6 +24,14 @@ type syncColumn struct {
 var syncColumnValues = []syncColumn{
 	{
 		name: "timestamp",
+		desc: "TODO",
+	},
+	{
+		name: "start_block",
+		desc: "TODO",
+	},
+	{
+		name: "enabled_entities",
 		desc: "TODO",
 	},
 	{
@@ -54,6 +64,22 @@ func initSyncsTable() *schema.Table {
 			IncrementalKey: false,
 			PrimaryKey:     false,
 			Type:           arrow.FixedWidthTypes.Timestamp_us,
+		},
+		schema.Column{
+			Name:           syncColumnValues[idxStartBlock].name,
+			Description:    syncColumnValues[idxStartBlock].desc,
+			NotNull:        true,
+			IncrementalKey: false,
+			PrimaryKey:     false,
+			Type:           arrow.PrimitiveTypes.Uint64,
+		},
+		schema.Column{
+			Name:           syncColumnValues[idxEnabledEntities].name,
+			Description:    syncColumnValues[idxEnabledEntities].desc,
+			NotNull:        true,
+			IncrementalKey: false,
+			PrimaryKey:     false,
+			Type:           arrow.BinaryTypes.String,
 		},
 		schema.Column{
 			Name:           syncColumnValues[idxMissedBlocks].name,

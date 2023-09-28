@@ -32,29 +32,43 @@ spec:
   tables: ["block","transaction","transaction_log","trace"]
   destinations: ["bigquery"]
   spec:
+    # Provide connection string. For ex.: postgres://user:pass@host:port/db?sslmode=verify-ca&pool_max_conns=10
+    # Available options:
+    # - pool_max_conns: integer greater than 0
+    # - pool_min_conns: integer 0 or greater
+    # - pool_max_conn_lifetime: duration string
+    # - pool_max_conn_idle_time: duration string
+    # - pool_health_check_period: duration string
+    # - pool_max_conn_lifetime_jitter: duration string
     connection_string: "postgresql://user:pass@host:port/db?sslmode=disable"
     # Optional parameters:
     # cdc_id: "postgresql" # Set to a unique string per source to enable Change Data Capture mode (logical replication, or CDC)
     pgx_log_level: error
     rows_per_record: 1
-    sync_mode: "block" # "block" or "table", default is table
-    limit: 10 # limit number of blocks, default 0 which is no limitation at all
-    entities:          # see https://ethereum-etl.readthedocs.io/en/latest/commands/
-      - name: "block"
-        table: "block"
-        enable: true
-      - name: "transaction"
-        table: "transaction"
-        enable: true
-      - name: "log"
-        table: "transaction_log"
-        enable: true
-      - name: "trace"
-        table: "trace"
-        enable: true
-      - name: "token_transfer"
-        table: ""
-        enable: false
+    # "block" or "table", default is table. 
+    # If "block" is set, 'block' section is read in.  
+    sync_mode: "block"
+    block:
+      start: 0 # block number from start, 0 points to the very first block  
+      limit: 0 # limit number of blocks, default 0 which is no limitation at all
+      # Index of the table in 'tables' list starting from 0. 
+      # This is necessary because actual tables/views may be named differently. 
+      table_idx: 0
+      # Other entities such as: transaction,log,token_transfer,trace,contract,token
+      # see https://ethereum-etl.readthedocs.io/en/latest/commands/
+      entities:
+        - name: "transaction"
+          table_idx: 1
+          enable: true
+        - name: "log"
+          table_idx: 2
+          enable: true
+        - name: "trace"
+          table_idx: 3
+          enable: true
+        - name: "token_transfer"
+          # table_idx: 
+          enable: false
 ```
 
 ```yaml
