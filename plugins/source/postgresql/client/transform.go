@@ -2,10 +2,12 @@ package client
 
 import (
 	"database/sql/driver"
+	"fmt"
 	"github.com/apache/arrow/go/v14/arrow"
 	"github.com/apache/arrow/go/v14/arrow/decimal128"
 	"github.com/apache/arrow/go/v14/arrow/decimal256"
 	"github.com/jackc/pgx/v5/pgtype"
+	"math/big"
 )
 
 type transformer func(any) (any, error)
@@ -51,7 +53,10 @@ func transformerForDataType(dt arrow.DataType) transformer {
 			if v == nil {
 				return nil, nil
 			}
-			t := v.(pgtype.Numeric).Int
+			t, err := toBigInt(v.(pgtype.Numeric))
+			if err != nil {
+				return nil, err
+			}
 			return decimal128.FromBigInt(t), nil
 		}
 	case *arrow.Decimal256Type:
@@ -59,7 +64,10 @@ func transformerForDataType(dt arrow.DataType) transformer {
 			if v == nil {
 				return nil, nil
 			}
-			t := v.(pgtype.Numeric).Int
+			t, err := toBigInt(v.(pgtype.Numeric))
+			if err != nil {
+				return nil, err
+			}
 			return decimal256.FromBigInt(t), nil
 		}
 	default:
@@ -67,6 +75,35 @@ func transformerForDataType(dt arrow.DataType) transformer {
 			return v, nil
 		}
 	}
+}
+
+func toBigInt(n pgtype.Numeric) (*big.Int, error) {
+	var (
+		big0  = big.NewInt(0)
+		big10 = big.NewInt(10)
+	)
+
+	if n.Exp == 0 {
+		return n.Int, nil
+	}
+
+	num := &big.Int{}
+	num.Set(n.Int)
+	if n.Exp > 0 {
+		mul := &big.Int{}
+		mul.Exp(big10, big.NewInt(int64(n.Exp)), nil)
+		num.Mul(num, mul)
+		return num, nil
+	}
+
+	div := &big.Int{}
+	div.Exp(big10, big.NewInt(int64(-n.Exp)), nil)
+	remainder := &big.Int{}
+	num.DivMod(num, div, remainder)
+	if remainder.Cmp(big0) != 0 {
+		return nil, fmt.Errorf("cannot convert %v to integer", n)
+	}
+	return num, nil
 }
 
 func transformersForSchema(schema *arrow.Schema) []transformer {

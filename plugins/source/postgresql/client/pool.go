@@ -9,7 +9,7 @@ import (
 
 type query struct {
 	entity EntityName
-	arg1   string
+	arg1   uint64
 }
 
 type queryPool struct {

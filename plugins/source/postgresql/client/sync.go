@@ -138,57 +138,28 @@ func (c *Client) syncTables(ctx context.Context, snapshotName string, filteredTa
 	return nil
 }
 
-// deprecated
-func (c *Client) query(ctx context.Context, entity *entity, args ...any) error {
-	rows, err := c.Conn.Query(ctx, entity.sqlStmt, args...)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		values, err := rows.Values()
-		if err != nil {
-			return err
-		}
-
-		for i, value := range values {
-			val, err := entity.transformers[i](value)
-			if err != nil {
-				return err
-			}
-
-			s := scalar.NewScalar(entity.arrowSchema.Field(i).Type)
-			if err := s.Set(val); err != nil {
-				return err
-			}
-
-			scalar.AppendToBuilder(entity.recBuilder.Field(i), s)
-		}
-	}
-	return nil
-}
-
 func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Table, res chan<- message.SyncMessage) error {
-	c.logger.Info().Str("name", tables[0].Name).Msg("table name")
-	c.logger.Info().Str("name", tables[1].Name).Msg("table name")
-	c.logger.Info().Str("name", tables[2].Name).Msg("table name")
-	c.logger.Info().Str("name", tables[3].Name).Msg("table name")
+	c.logger.Info().Str("name", tables[0].Name).Msg("table name 0")
+	c.logger.Info().Str("name", tables[1].Name).Msg("table name 1")
+	c.logger.Info().Str("name", tables[2].Name).Msg("table name 2")
+	c.logger.Info().Str("name", tables[3].Name).Msg("table name 3")
 
-	type missedArgs struct {
-		prev uint64
-	}
+	var prev uint64
 
-	var missedVals = missedArgs{}
+	//10-0,2-10
+	//10-0,2-10,20-1,3-20,30-2,4-30
 
 	calcMissed := func(num uint64) string {
-		switch d := num - missedVals.prev; {
-		case d == 1:
+		defer func() {
+			prev = num
+		}()
+		switch delta := num - prev; {
+		case delta == 1:
 			return "" // Ok
-		case d == 2:
-			return strconv.FormatUint(missedVals.prev+1, 10)
-		case d > 2:
-			return strconv.FormatUint(missedVals.prev+1, 10) + "-" +
+		case delta == 2:
+			return strconv.FormatUint(prev+1, 10)
+		case delta > 2:
+			return strconv.FormatUint(prev+1, 10) + "-" +
 				strconv.FormatUint(num-1, 10)
 		}
 		return ""
@@ -197,7 +168,7 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 	var (
 		syncsSchema     *arrow.Schema
 		syncsBuilder    *array.RecordBuilder
-		lastSynced      decimal128.Num
+		lastSynced      uint64
 		eachSynced      strings.Builder
 		enabledEntities []string
 		missedBlocks    string // Ex.: 3, 5, 6, 8, 91-92, 145-156
@@ -290,18 +261,13 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 		}
 	}
 
-	start := time.Now()
+	syncReport[idxSyncID].Value = "sync_" + time.Now().Format("Jan-_2-15:04:05") + ".json"
+	syncReport[idxTimestamp].Value = time.Now()
+	syncReport[idxStartBlock].Value = c.pluginSpec.Block.Start
+	syncReport[idxEnabledEntities].Value = strings.Join(enabledEntities, ",")
 
 	defer func() {
-		syncColumnValues[idxTimestamp].value = time.Now()
-		syncColumnValues[idxStartBlock].value = c.pluginSpec.Block.Start
-		syncColumnValues[idxEnabledEntities].value = strings.Join(enabledEntities, ",")
-		syncColumnValues[idxTimeElapsed].value = FmtElapsedTime(start, time.Now(), " ", false)
-		syncColumnValues[idxLastSyncedBlock].value = lastSynced
-		syncColumnValues[idxEachSyncedBlock].value = eachSynced.String()
-		syncColumnValues[idxMissedBlocks].value = missedBlocks
-
-		if err := c.syncSync(res, syncsSchema, syncsBuilder, syncColumnValues); err != nil {
+		if err := c.syncSync(res, syncsSchema, syncsBuilder, syncReport); err != nil {
 			c.logger.Error().Err(err).Msg("sync sync error")
 		}
 	}()
@@ -312,6 +278,7 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 		in:       make(chan query, 1),
 		out:      make(chan error, 1),
 		res:      res,
+		quit:     make(chan struct{}),
 	}
 
 	qp.start(ctx)
@@ -352,16 +319,14 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 			if i == blockNumColIdx {
 				switch v := val.(type) {
 				case decimal128.Num:
-					eachSynced.WriteString(v.ToString(0))
-					eachSynced.WriteRune(',')
-					lastSynced = v
+					lastSynced = v.BigInt().Uint64()
 				default:
 					return fmt.Errorf("unimplemented type for block number: %T", v)
 				}
 			}
 		}
 
-		if v := calcMissed(lastSynced.BigInt().Uint64()); v != "" {
+		if v := calcMissed(lastSynced); v != "" {
 			if missedBlocks != "" {
 				missedBlocks += ","
 			}
@@ -371,21 +336,21 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 		if entities[EntTransaction] != nil {
 			qp.add(query{
 				entity: EntTransaction,
-				arg1:   lastSynced.ToString(0),
+				arg1:   lastSynced,
 			})
 		}
 
 		if entities[EntLog] != nil {
 			qp.add(query{
 				entity: EntLog,
-				arg1:   lastSynced.ToString(0),
+				arg1:   lastSynced,
 			})
 		}
 
 		if entities[EntTrace] != nil {
 			qp.add(query{
 				entity: EntTrace,
-				arg1:   lastSynced.ToString(0),
+				arg1:   lastSynced,
 			})
 		}
 
@@ -397,20 +362,18 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 
 		// NewRecord resets the builder for reuse
 		res <- &message.SyncInsert{Record: blockBuilder.NewRecord()}
+
+		start := syncReport[idxTimestamp].Value.(time.Time)
+		syncReport[idxTimeElapsed].Value = FmtElapsedTime(start, time.Now(), " ", false)
+		syncReport[idxLastSyncedBlock].Value = strconv.FormatUint(lastSynced, 10)
+		// TODO optimization, probably not needed
+		eachSynced.WriteString(syncReport[idxLastSyncedBlock].Value.(string))
+		eachSynced.WriteRune(',')
+		syncReport[idxEachSyncedBlock].Value = eachSynced.String()
+		syncReport[idxMissedBlocks].Value = missedBlocks
+		syncReport.writeToFile(c.pluginSpec.ReportDir)
 	}
 
-	return nil
-}
-
-func (c *Client) syncSync(res chan<- message.SyncMessage, schema *arrow.Schema, builder *array.RecordBuilder, vals []syncColumn) error {
-	for i, val := range vals {
-		s := scalar.NewScalar(schema.Field(i).Type)
-		if err := s.Set(val.value); err != nil {
-			return err
-		}
-		scalar.AppendToBuilder(builder.Field(i), s)
-	}
-	res <- &message.SyncInsert{Record: builder.NewRecord()}
 	return nil
 }
 
@@ -463,5 +426,17 @@ func (c *Client) syncTable(ctx context.Context, tx pgx.Tx, table *schema.Table, 
 		res <- &message.SyncInsert{Record: record}
 	}
 
+	return nil
+}
+
+func (c *Client) syncSync(res chan<- message.SyncMessage, schema *arrow.Schema, builder *array.RecordBuilder, vals syncColumns) error {
+	for i, val := range vals {
+		s := scalar.NewScalar(schema.Field(i).Type)
+		if err := s.Set(val.Value); err != nil {
+			return err
+		}
+		scalar.AppendToBuilder(builder.Field(i), s)
+	}
+	res <- &message.SyncInsert{Record: builder.NewRecord()}
 	return nil
 }

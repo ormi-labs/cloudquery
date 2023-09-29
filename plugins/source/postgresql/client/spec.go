@@ -27,6 +27,7 @@ type Spec struct {
 	CDCId            string   `json:"cdc_id,omitempty"`
 	RowsPerRecord    int      `json:"rows_per_record,omitempty"`
 	SyncMode         string   `json:"sync_mode,omitempty"`
+	ReportDir        string   `json:report_dir,omitempty`
 	Block            Block    `json:"block,omitempty"`
 }
 

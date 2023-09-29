@@ -1,12 +1,17 @@
 package client
 
 import (
+	"encoding/json"
+	"fmt"
 	"github.com/apache/arrow/go/v14/arrow"
 	"github.com/cloudquery/plugin-sdk/v4/schema"
+	"os"
+	"path/filepath"
 )
 
 const (
-	idxTimestamp = iota
+	idxSyncID = iota
+	idxTimestamp
 	idxStartBlock
 	idxEnabledEntities
 	idxMissedBlocks
@@ -15,40 +20,44 @@ const (
 	idxTimeElapsed
 )
 
-type syncColumn struct {
-	name  string
-	desc  string
-	value any
+type syncColumns []struct {
+	Name  string `json:"name"`
+	Desc  string `json:"desc"`
+	Value any    `json:"value"`
 }
 
-var syncColumnValues = []syncColumn{
-	{
-		name: "timestamp",
-		desc: "TODO",
+var syncReport = syncColumns{
+	idxSyncID: {
+		Name: "sync_id",
+		Desc: "TODO",
 	},
-	{
-		name: "start_block",
-		desc: "TODO",
+	idxTimestamp: {
+		Name: "timestamp",
+		Desc: "TODO",
 	},
-	{
-		name: "enabled_entities",
-		desc: "TODO",
+	idxStartBlock: {
+		Name: "start_block",
+		Desc: "TODO",
 	},
-	{
-		name: "missed_blocks",
-		desc: "TODO",
+	idxEnabledEntities: {
+		Name: "enabled_entities",
+		Desc: "TODO",
 	},
-	{
-		name: "last_synced_block",
-		desc: "TODO",
+	idxMissedBlocks: {
+		Name: "missed_blocks",
+		Desc: "TODO",
 	},
-	{
-		name: "each_synced_block",
-		desc: "TODO",
+	idxLastSyncedBlock: {
+		Name: "last_synced_block",
+		Desc: "TODO",
 	},
-	{
-		name: "time_elapsed",
-		desc: "TODO",
+	idxEachSyncedBlock: {
+		Name: "each_synced_block",
+		Desc: "TODO",
+	},
+	idxTimeElapsed: {
+		Name: "time_elapsed",
+		Desc: "TODO",
 	},
 }
 
@@ -58,56 +67,65 @@ func initSyncsTable() *schema.Table {
 	table.Description = "sync run report"
 	table.Columns = schema.ColumnList{
 		schema.Column{
-			Name:           syncColumnValues[idxTimestamp].name,
-			Description:    syncColumnValues[idxTimestamp].desc,
+			Name:           syncReport[idxSyncID].Name,
+			Description:    syncReport[idxSyncID].Desc,
+			NotNull:        true,
+			IncrementalKey: false,
+			PrimaryKey:     true,
+			Type:           arrow.BinaryTypes.String,
+		},
+		schema.Column{
+			Name:           syncReport[idxTimestamp].Name,
+			Description:    syncReport[idxTimestamp].Desc,
 			NotNull:        true,
 			IncrementalKey: false,
 			PrimaryKey:     false,
 			Type:           arrow.FixedWidthTypes.Timestamp_us,
 		},
 		schema.Column{
-			Name:           syncColumnValues[idxStartBlock].name,
-			Description:    syncColumnValues[idxStartBlock].desc,
+			Name:           syncReport[idxStartBlock].Name,
+			Description:    syncReport[idxStartBlock].Desc,
 			NotNull:        true,
 			IncrementalKey: false,
 			PrimaryKey:     false,
 			Type:           arrow.PrimitiveTypes.Uint64,
 		},
 		schema.Column{
-			Name:           syncColumnValues[idxEnabledEntities].name,
-			Description:    syncColumnValues[idxEnabledEntities].desc,
+			Name:           syncReport[idxEnabledEntities].Name,
+			Description:    syncReport[idxEnabledEntities].Desc,
 			NotNull:        true,
 			IncrementalKey: false,
 			PrimaryKey:     false,
 			Type:           arrow.BinaryTypes.String,
 		},
 		schema.Column{
-			Name:           syncColumnValues[idxMissedBlocks].name,
-			Description:    syncColumnValues[idxMissedBlocks].desc,
+			Name:           syncReport[idxMissedBlocks].Name,
+			Description:    syncReport[idxMissedBlocks].Desc,
 			NotNull:        true,
 			IncrementalKey: false,
 			PrimaryKey:     false,
 			Type:           arrow.BinaryTypes.String,
 		},
 		schema.Column{
-			Name:           syncColumnValues[idxLastSyncedBlock].name,
-			Description:    syncColumnValues[idxLastSyncedBlock].desc,
+			Name:           syncReport[idxLastSyncedBlock].Name,
+			Description:    syncReport[idxLastSyncedBlock].Desc,
 			NotNull:        true,
 			IncrementalKey: false,
 			PrimaryKey:     false,
-			Type:           &arrow.Decimal128Type{},
+			//Type:           &arrow.FixedWidthTypes.Decimal128Type{},
+			Type: arrow.BinaryTypes.String,
 		},
 		schema.Column{
-			Name:           syncColumnValues[idxEachSyncedBlock].name,
-			Description:    syncColumnValues[idxEachSyncedBlock].desc,
+			Name:           syncReport[idxEachSyncedBlock].Name,
+			Description:    syncReport[idxEachSyncedBlock].Desc,
 			NotNull:        true,
 			IncrementalKey: false,
 			PrimaryKey:     false,
 			Type:           arrow.BinaryTypes.String,
 		},
 		schema.Column{
-			Name:           syncColumnValues[idxTimeElapsed].name,
-			Description:    syncColumnValues[idxTimeElapsed].desc,
+			Name:           syncReport[idxTimeElapsed].Name,
+			Description:    syncReport[idxTimeElapsed].Desc,
 			NotNull:        true,
 			IncrementalKey: false,
 			PrimaryKey:     false,
@@ -115,4 +133,31 @@ func initSyncsTable() *schema.Table {
 		},
 	}
 	return table
+}
+
+func readFromFile(file string) (syncColumns, error) {
+	_, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO
+
+	return nil, nil
+}
+
+func (s syncColumns) writeToFile(dir string) error {
+	f, err := os.OpenFile(filepath.Join(dir, s[idxSyncID].Value.(string)), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	bs, err := json.Marshal(s)
+	if err != nil {
+		fmt.Errorf("JSON marshal error: %v", err)
+	}
+
+	_, err = f.Write(bs)
+	return err
 }
