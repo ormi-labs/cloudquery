@@ -145,10 +145,10 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 		lastSynced      uint64
 		eachSynced      strings.Builder
 		enabledEntities []string
-		missedBlocks    string // Ex.: 3, 5, 6, 8, 91-92, 145-156
+		missedBlocks    string // Ex.: 3,5,6,8,91-92,145-156
 	)
 
-	var prev uint64
+	prev := c.pluginSpec.Block.Start
 	calcMissed := func(num uint64) string {
 		defer func() {
 			prev = num
