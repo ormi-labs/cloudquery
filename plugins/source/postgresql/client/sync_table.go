@@ -1,6 +1,7 @@
 package client
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"fmt"
 	"github.com/apache/arrow/go/v14/arrow"
@@ -135,29 +136,43 @@ func initSyncsTable() *schema.Table {
 	return table
 }
 
-func readFromFile(file string) (syncColumns, error) {
-	_, err := os.ReadFile(file)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO
-
-	return nil, nil
-}
-
-func (s syncColumns) writeToFile(dir string) error {
-	f, err := os.OpenFile(filepath.Join(dir, s[idxSyncID].Value.(string)), os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+func (s syncColumns) writeToFile(dir string, ext string) error {
+	fn := filepath.Join(dir, s[idxSyncID].Value.(string)) + "." + ext
+	f, err := os.OpenFile(fn, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
 		return err
 	}
 	defer f.Close()
 
-	bs, err := json.Marshal(s)
-	if err != nil {
-		fmt.Errorf("JSON marshal error: %v", err)
+	switch ext {
+	case "json":
+		bs, err := json.Marshal(s)
+		if err != nil {
+			fmt.Errorf("JSON marshal error: %v", err)
+		}
+
+		_, err = f.Write(bs)
+		return err
+	case "csv":
+		header := make([]string, len(s))
+		record := make([]string, len(s))
+
+		for i := range s {
+			header[i] = s[i].Name
+			record[i] = fmt.Sprintf("%s", s[i].Value)
+		}
+
+		lines := [][]string{header, record}
+		w := csv.NewWriter(f)
+		for _, l := range lines {
+			if err := w.Write(l); err != nil {
+				fmt.Errorf("CSV write error: %v", err)
+			}
+		}
+
+		w.Flush()
+		return w.Error()
 	}
 
-	_, err = f.Write(bs)
-	return err
+	return nil
 }

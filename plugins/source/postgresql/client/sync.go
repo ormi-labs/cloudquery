@@ -139,16 +139,16 @@ func (c *Client) syncTables(ctx context.Context, snapshotName string, filteredTa
 }
 
 func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Table, res chan<- message.SyncMessage) error {
-	c.logger.Info().Str("name", tables[0].Name).Msg("table name 0")
-	c.logger.Info().Str("name", tables[1].Name).Msg("table name 1")
-	c.logger.Info().Str("name", tables[2].Name).Msg("table name 2")
-	c.logger.Info().Str("name", tables[3].Name).Msg("table name 3")
+	var (
+		syncsSchema     *arrow.Schema
+		syncsBuilder    *array.RecordBuilder
+		lastSynced      uint64
+		eachSynced      strings.Builder
+		enabledEntities []string
+		missedBlocks    string // Ex.: 3, 5, 6, 8, 91-92, 145-156
+	)
 
 	var prev uint64
-
-	//10-0,2-10
-	//10-0,2-10,20-1,3-20,30-2,4-30
-
 	calcMissed := func(num uint64) string {
 		defer func() {
 			prev = num
@@ -165,16 +165,8 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 		return ""
 	}
 
-	var (
-		syncsSchema     *arrow.Schema
-		syncsBuilder    *array.RecordBuilder
-		lastSynced      uint64
-		eachSynced      strings.Builder
-		enabledEntities []string
-		missedBlocks    string // Ex.: 3, 5, 6, 8, 91-92, 145-156
-	)
-
-	for _, table := range tables {
+	for i, table := range tables {
+		c.logger.Info().Int("index", i).Str("name", tables[0].Name).Msg("table")
 		if table.Name == "syncs" {
 			syncsSchema = table.ToArrowSchema()
 			syncsBuilder = array.NewRecordBuilder(memory.DefaultAllocator, syncsSchema)
@@ -261,7 +253,7 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 		}
 	}
 
-	syncReport[idxSyncID].Value = "sync_" + time.Now().Format("Jan-_2-15:04:05") + ".json"
+	syncReport[idxSyncID].Value = "sync_" + time.Now().Format("Jan-_2-15:04:05")
 	syncReport[idxTimestamp].Value = time.Now()
 	syncReport[idxStartBlock].Value = c.pluginSpec.Block.Start
 	syncReport[idxEnabledEntities].Value = strings.Join(enabledEntities, ",")
@@ -371,7 +363,7 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 		eachSynced.WriteRune(',')
 		syncReport[idxEachSyncedBlock].Value = eachSynced.String()
 		syncReport[idxMissedBlocks].Value = missedBlocks
-		syncReport.writeToFile(c.pluginSpec.ReportDir)
+		syncReport.writeToFile(c.pluginSpec.ReportDir, c.pluginSpec.ReportFmt)
 	}
 
 	return nil

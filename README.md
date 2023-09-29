@@ -45,14 +45,16 @@ spec:
     # cdc_id: "postgresql" # Set to a unique string per source to enable Change Data Capture mode (logical replication, or CDC)
     pgx_log_level: error
     rows_per_record: 1
-    # "block" or "table", default is table. 
-    # If "block" is set, 'block' section is read in.  
+    # "block" or "table", default is table.
+    # If "block" is set, 'block' section is read in.
     sync_mode: "block"
+    report_dir: "."
+    report_fmt: "csv" # "csv" or "json", default is csv
     block:
-      start: 0 # block number from start, 0 points to the very first block  
+      start: 0 # block number from start, 0 points to the very first block
       limit: 0 # limit number of blocks, default 0 which is no limitation at all
-      # Index of the table in 'tables' list starting from 0. 
-      # This is necessary because actual tables/views may be named differently. 
+      # Index of the table in 'tables' list starting from 0.
+      # This is necessary because actual tables/views may be named differently.
       table_idx: 0
       # Other entities such as: transaction,log,token_transfer,trace,contract,token
       # see https://ethereum-etl.readthedocs.io/en/latest/commands/
@@ -67,7 +69,7 @@ spec:
           table_idx: 3
           enable: true
         - name: "token_transfer"
-          # table_idx: 
+          # table_idx:
           enable: false
 ```
 
