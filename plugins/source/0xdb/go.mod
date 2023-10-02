@@ -1,10 +1,10 @@
-module github.com/cloudquery/cloudquery/plugins/source/postgresql
+module github.com/cloudquery/cloudquery/plugins/source/0xdb
 
 go 1.20
 
 require (
-	github.com/apache/arrow/go/v14 v14.0.0-20230929201650-00efb06dc0de
-	github.com/cloudquery/plugin-sdk/v4 v4.11.1
+	github.com/apache/arrow/go/v14 v14.0.0-20230905030402-a526ba697d4e
+	github.com/cloudquery/plugin-sdk/v4 v4.10.0
 	github.com/google/uuid v1.3.1
 	github.com/jackc/pglogrepl v0.0.0-20230826184802-9ed16cb201f6
 	github.com/jackc/pgx-zerolog v0.0.0-20230315001418-f978528409eb
@@ -15,7 +15,7 @@ require (
 )
 
 // TODO: remove once all updates are merged
-replace github.com/apache/arrow/go/v14 => github.com/cloudquery/arrow/go/v14 v14.0.0-20231002001222-7ded38b478cd
+replace github.com/apache/arrow/go/v14 => github.com/cloudquery/arrow/go/v14 v14.0.0-20230916001126-ffb7089245ac
 
 require (
 	github.com/apache/arrow/go/v13 v13.0.0-20230731205701-112f94971882 // indirect

@@ -1,0 +1,14 @@
+variables:
+  component: source/0xdb
+  binary: 0xdb
+
+project_name: plugins/source/0xdb
+
+monorepo:
+  tag_prefix: plugins-source-0xdb-
+  dir: plugins/source/0xdb
+
+includes:
+  - from_file:
+      # Relative to the directory Go Releaser is run from (which is the root of the repository)
+      path: ./plugins/.goreleaser.yaml

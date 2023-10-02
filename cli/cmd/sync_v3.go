@@ -72,10 +72,12 @@ func syncConnectionV3(ctx context.Context, source v3source, destinations []v3des
 	backendPbClient := plugin.PluginClient(nil)
 	for i := range destinationsClients {
 		destinationsPbClients[i] = plugin.NewPluginClient(destinationsClients[i].Conn)
-		opts := []transformer.RecordTransformerOption{
-			transformer.WithSourceNameColumn(sourceName),
-			transformer.WithSyncTimeColumn(syncTime),
-		}
+		// purposefully disabled as for not adding these to the BQ
+		//opts := []transformer.RecordTransformerOption{
+		//	transformer.WithSourceNameColumn(sourceName),
+		//	transformer.WithSyncTimeColumn(syncTime),
+		//}
+		opts := []transformer.RecordTransformerOption{}
 		if destinationSpecs[i].WriteMode == specs.WriteModeAppend {
 			opts = append(opts, transformer.WithRemovePKs())
 		} else if destinationSpecs[i].PKMode == specs.PKModeCQID {

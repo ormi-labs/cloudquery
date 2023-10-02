@@ -1,0 +1,53 @@
+```yaml copy
+kind: source
+spec:
+  name: "0xdb"
+  # registry: "github"
+  # path: "cloudquery/0xdb"
+  registry: "local"
+  path: "../bin/0xdb"
+  version: "v3.0.0"
+  tables: ["block","transaction","transaction_log","trace"]
+  destinations: ["DESTINATION_NAME"]
+  spec:
+    # Provide connection string. For ex.: postgres://user:pass@host:port/db?sslmode=verify-ca&pool_max_conns=10
+    # Available options:
+    # - pool_max_conns: integer greater than 0
+    # - pool_min_conns: integer 0 or greater
+    # - pool_max_conn_lifetime: duration string
+    # - pool_max_conn_idle_time: duration string
+    # - pool_health_check_period: duration string
+    # - pool_max_conn_lifetime_jitter: duration string
+    connection_string: "postgresql://postgres:pass@localhost:5432/postgres?sslmode=disable&pool_min_conns=4"
+    # Optional parameters:
+    # cdc_id: "postgresql" # Set to a unique string per source to enable Change Data Capture mode (logical replication, or CDC)
+    pgx_log_level: error
+    rows_per_record: 1
+    report_dir: "."
+    report_fmt: "csv" # "csv" or "json", default is csv
+    block:
+      start: 0 # block number from start, 0 points to the very first block
+      limit: 0 # limit number of blocks, default 0 which is no limitation at all
+      # Index of the table in 'tables' list starting from 0.
+      # This is necessary because actual tables/views may be named differently.
+      table_idx: 0
+      # Other entities such as: transaction,log,token_transfer,trace,contract,token
+      # see https://ethereum-etl.readthedocs.io/en/latest/commands/
+      entities:
+        - name: "transaction"
+          table_idx: 1
+          enable: true
+        - name: "log"
+          table_idx: 2
+          enable: true
+        - name: "trace"
+          table_idx: 3
+          enable: true
+        - name: "token_transfer"
+          # table_idx:
+          enable: false
+```
+
+This example configures a 0xdb source, located at `localhost:5432`. The (top level) spec section is described in the [Source Spec Reference](/docs/reference/source-spec).
+
+Set `cdc_id` to a unique string per source to enable Change Data Capture mode (logical replication, or CDC). This will enable the 0xdb plugin to use the PostgreSQL logical replication feature to capture changes in the database. This is useful for use cases where you want to capture changes in the database in real time. For more information on CDC, see the [CDC](/docs/plugins/sources/postgresql/cdc) section of the documentation.

@@ -128,8 +128,9 @@ func (c *Client) DataTypeToBigQueryType(dataType arrow.DataType) bigquery.FieldT
 		arrow.FixedWidthTypes.MonthDayNanoInterval):
 		return bigquery.RecordFieldType
 		// We don't use `typeOneOf` as `arrow.TypeEqual` checks for equality of precision and scale.
-	case arrow.IsDecimal(dataType.ID()):
-		// BigQuery NumericFieldType has a scale limit of 9, so we use BigNumeric for both decimal128 and decimal256.
+	case dataType.ID() == arrow.DECIMAL128:
+		return bigquery.NumericFieldType
+	case dataType.ID() == arrow.DECIMAL256:
 		return bigquery.BigNumericFieldType
 	default:
 		panic("unsupported data type: " + dataType.String())

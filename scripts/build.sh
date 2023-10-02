@@ -2,10 +2,11 @@
 set -e
 
 CHANGE_ONLY="false"
-GO_MOD_DIRS=$(find . -type f -name "go.mod" | xargs -n1 dirname)
+GO_MOD_DIRS=$(find . -type f -name "go.mod"  | xargs -n1 dirname \
+ | grep 'source/0xdb\|destination/bigquery')
 
 print_usage() {
-    echo "Runs go build on all modules. Output is written to ./bin"
+    echo "Runs go build on selected modules. Output is written to ./bin"
     echo
     echo "Syntax: ./build.sh [-c]"
     echo "options:"

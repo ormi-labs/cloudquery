@@ -39,7 +39,7 @@ func (c *Client) Write(ctx context.Context, res <-chan message.WriteMessage) err
 
 func (c *Client) WriteTableBatch(ctx context.Context, name string, msgs message.WriteInserts) error {
 	inserter := c.client.Dataset(c.spec.DatasetID).Table(name).Inserter()
-	inserter.IgnoreUnknownValues = true
+	inserter.IgnoreUnknownValues = false
 	inserter.SkipInvalidRows = false
 	batch := make([]*item, 0)
 	for _, msg := range msgs {
@@ -126,6 +126,10 @@ func getValueForBigQuery(col arrow.Array, i int) any {
 		}
 	case *types.JSONArray:
 		return v.ValueStr(i)
+	case *array.Decimal128:
+		return v.Value(i).ToString(0)
+	case *array.Decimal256:
+		return v.Value(i).ToString(0)
 	}
 	return col.GetOneForMarshal(i)
 }
