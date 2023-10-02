@@ -93,10 +93,11 @@ func TestPg10ToArrow(t *testing.T) {
 		{"time(6) with time zone", arrow.FixedWidthTypes.Time64us},
 		// special case for uint64
 		{"numeric(20,0)", arrow.PrimitiveTypes.Uint64},
-
+		// Workaround to sync numerics between PostgreSQL and BigQuery.
+		// Originally values of numeric type were converted to String.
+		{"numeric", &arrow.Decimal128Type{}},
 		// types that are converted to string for now - more specific support for these types
 		// may be added in the future
-		{"numeric", arrow.BinaryTypes.String},
 		{"numeric (1, 0)", arrow.BinaryTypes.String},
 		{"numeric (1000, 1000)", arrow.BinaryTypes.String},
 		{"interval", arrow.BinaryTypes.String},

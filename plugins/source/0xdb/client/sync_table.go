@@ -17,7 +17,6 @@ const (
 	idxEnabledEntities
 	idxMissedBlocks
 	idxLastSyncedBlock
-	idxEachSyncedBlock
 	idxTimeElapsed
 )
 
@@ -50,10 +49,6 @@ var syncReport = syncColumns{
 	},
 	idxLastSyncedBlock: {
 		Name: "last_synced_block",
-		Desc: "TODO",
-	},
-	idxEachSyncedBlock: {
-		Name: "each_synced_block",
 		Desc: "TODO",
 	},
 	idxTimeElapsed: {
@@ -115,14 +110,6 @@ func initSyncsTable() *schema.Table {
 			PrimaryKey:     false,
 			//Type:           &arrow.FixedWidthTypes.Decimal128Type{},
 			Type: arrow.BinaryTypes.String,
-		},
-		schema.Column{
-			Name:           syncReport[idxEachSyncedBlock].Name,
-			Description:    syncReport[idxEachSyncedBlock].Desc,
-			NotNull:        true,
-			IncrementalKey: false,
-			PrimaryKey:     false,
-			Type:           arrow.BinaryTypes.String,
 		},
 		schema.Column{
 			Name:           syncReport[idxTimeElapsed].Name,

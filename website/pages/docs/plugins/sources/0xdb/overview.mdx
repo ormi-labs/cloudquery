@@ -1,0 +1,109 @@
+---
+name: 0xdb
+title: 0xdb Source Plugin
+description: CloudQuery 0xdb source plugin documentation
+---
+# 0xdb Source Plugin
+
+import { getLatestVersion } from "../../../../../utils/versions";
+import { Badge } from "../../../../../components/Badge";
+import { Callout } from 'nextra-theme-docs'
+
+<Badge text={"Latest: " + getLatestVersion("source", "0xdb")}/>
+
+The CloudQuery oxdb plugin syncs blockchain data distributed by Ormi Labs to any of the supported CloudQuery destinations (e.g. PostgreSQL, BigQuery, Snowflake, and [more](/docs/plugins/destinations/overview)).
+The plugin uses PostgreSQL database as a source for the data and therefore it also supports CDC via PostgreSQL logical replication, which enables keeping your PostgreSQL up to date with any destination by subscribing to changes.
+
+### Example
+
+This example configures a 0xdb source, located at `localhost:5432`. The (top level) spec section is described in the [Source Spec Reference](/docs/reference/source-spec).
+
+```yaml copy
+kind: source
+spec:
+  name: "0xdb"
+  # registry: "github"
+  # path: "cloudquery/0xdb"
+  registry: "local"
+  path: "../bin/0xdb"
+  version: "v3.0.0"
+  tables: ["block","transaction","transaction_log","trace"]
+  destinations: ["bigquery"]
+  spec:
+    connection_string: "postgresql://postgres:pass@localhost:5432/postgres?sslmode=disable&pool_min_conns=4"
+    # Optional parameters:
+    # cdc_id: "postgresql" # Set to a unique string per source to enable Change Data Capture mode (logical replication, or CDC)
+    pgx_log_level: error # Available: error, warn, info, debug, trace. Default: "error"
+    rows_per_record: 1
+    report_dir: "."
+    report_fmt: "csv" # "csv" or "json", default is csv
+    block:
+      start: 0 # block number from start, 0 points to the very first block
+      limit: 10 # limit number of blocks, default 0 which is no limitation at all
+      # Index of the table in 'tables' list starting from 0.
+      # This is necessary because actual tables/views may be named differently.
+      table_idx: 0
+      # Other entities such as: transaction,log,token_transfer,trace,contract,token
+      # see https://ethereum-etl.readthedocs.io/en/latest/commands/
+      entities:
+        - name: "transaction"
+          table_idx: 1
+          enable: true
+        - name: "log"
+          table_idx: 2
+          enable: true
+        - name: "trace"
+          table_idx: 3
+          enable: true
+        - name: "token_transfer"
+          # table_idx:
+          enable: false
+```
+
+<Callout type="info">
+Make sure you use environment variable expansion in production instead of committing the credentials to the configuration file directly.
+</Callout>
+
+### 0xdb Spec
+
+This is the (nested) spec used by the 0xdb source Plugin.
+
+- `connection_string` (`string`, required)
+
+  Connection string to connect to the database. This can be a URL or a DSN, as per [`pgxpool`](https://pkg.go.dev/github.com/jackc/pgx/v4/pgxpool#ParseConfig)
+
+  - `"postgres://jack:secret@localhost:5432/mydb?sslmode=prefer"` _connect with tcp and prefer TLS_
+  - `"postgres://jack:secret@localhost:5432/mydb?sslmode=disable&application_name=pgxtest&search_path=myschema&connect_timeout=5"` _be explicit with all options_
+  - `"postgres://localhost:5432/mydb?sslmode=disable"` _connect with os username cloudquery is being run as_
+  - `"postgres:///mydb?host=/tmp"` _connect over unix socket_
+  - `"dbname=mydb"` _unix domain socket, just specifying the db name - useful if you want to use peer authentication_
+  - `"user=jack password=jack\\'ssooper\\\\secret host=localhost port=5432 dbname=mydb sslmode=disable"` _DSN with escaped backslash and single quote_
+
+- `pgx_log_level` (`string`) (optional) (default: `error`)
+
+  Available: "error", "warn", "info", "debug", "trace"
+  define if and in which level to log [`pgx`](https://github.com/jackc/pgx) call.
+
+- `cdc_id` (`string`) (optional)
+
+  If set to a non-empty string the source plugin will start syncing CDC via PostgreSQL logical replication in real-time.
+  The value should be unique across all sources.
+
+- `rows_per_record` (`integer`) (optional) (default: `1`)
+
+  Amount of rows to be packed into a single Apache Arrow record to be sent over the wire during sync (or initial sync in the CDC mode).
+  We suggest using significantly more than the default (e.g. `5000`) to sync from large databases/tables.
+
+### Verbose logging for debug
+
+The 0xdb source can be run in debug mode.
+
+Note: This will use [`pgx`](https://github.com/jackc/pgx) built-in logging and might output data/sensitive information to logs so make sure to not use it in production, only for debugging.
+
+### Reporting
+
+0xdb creates `sync` table after the sync is done and CloudQuery exits without error. `sync` table is important to track down blockchain state. When an error occurs or the sync is interrupted, there is no way for such data to come through for a number of reasons. The obvious one is that error on destination side might preclude further data persistence. Reporting lets keep track of data being synced in one of available formats. If an error occurs, different tools can be used to push such reporting file to the destination as a record to `sync` table. For example, when syncing data to BigQuery, there is a `bq` tool that can be used to load data directly into BigQuery table. Having explained that, `report_dir` and `report_fmt` should be clear to fathom.
+
+### block Spec
+
+`block` comprises settings over blockchain data. See comments to config file above.
