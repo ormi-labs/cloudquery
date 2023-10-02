@@ -1,4 +1,4 @@
-module github.com/cloudquery/cloudquery/plugins/source/postgresql
+module github.com/cloudquery/cloudquery/plugins/source/0xdb
 
 go 1.20
 

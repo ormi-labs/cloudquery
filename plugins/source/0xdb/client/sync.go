@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/apache/arrow/go/v14/arrow/decimal128"
-	"github.com/cloudquery/cloudquery/plugins/source/postgresql/client/sql"
+	"github.com/cloudquery/cloudquery/plugins/source/0xdb/client/sql"
 
 	"github.com/apache/arrow/go/v14/arrow"
 	"github.com/apache/arrow/go/v14/arrow/array"
@@ -251,7 +251,7 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 	}
 
 	syncReport[idxSyncID].Value = "sync_" + time.Now().Format("Jan-2-15:04:05")
-	syncReport[idxTimestamp].Value = time.Now()
+	syncReport[idxTimestamp].Value = time.Now().UTC()
 	syncReport[idxStartBlock].Value = c.pluginSpec.Block.Start
 	syncReport[idxEnabledEntities].Value = strings.Join(enabledEntities, ",")
 

@@ -1,10 +1,10 @@
-# Postgresql source Plugin
+# 0xdb source Plugin
 
-The CloudQuery Postgresql source plugin replicates a Postgresql database to any supported CloudQuery destination.
+The CloudQuery 0xdb source plugin replicates blockchain data to any supported CloudQuery destination.
 
 ## Links
 
-- [User Guide](https://docs.cloudquery.io/docs/plugins/sources/postgresql/overview)
+- [User Guide](https://docs.cloudquery.io/docs/plugins/sources/0xdb/overview)
 
 
 

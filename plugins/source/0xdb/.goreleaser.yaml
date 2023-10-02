@@ -1,12 +1,12 @@
 variables:
-  component: source/postgresql
-  binary: postgresql
+  component: source/0xdb
+  binary: 0xdb
 
-project_name: plugins/source/postgresql
+project_name: plugins/source/0xdb
 
 monorepo:
-  tag_prefix: plugins-source-postgresql-
-  dir: plugins/source/postgresql
+  tag_prefix: plugins-source-0xdb-
+  dir: plugins/source/0xdb
 
 includes:
   - from_file:

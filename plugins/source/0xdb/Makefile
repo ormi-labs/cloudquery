@@ -9,7 +9,7 @@ lint:
 
 .PHONY: gen-docs
 gen-docs:
-	echo "skipping docs generation for postgresql source plugin"
+	echo "skipping docs generation for 0xdb source plugin"
 
 # All gen targets
 .PHONY: gen

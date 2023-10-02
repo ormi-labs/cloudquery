@@ -4,7 +4,7 @@ import (
 	"context"
 	"log"
 
-	"github.com/cloudquery/cloudquery/plugins/source/postgresql/resources/plugin"
+	"github.com/cloudquery/cloudquery/plugins/source/0xdb/resources/plugin"
 	"github.com/cloudquery/plugin-sdk/v4/serve"
 )
 

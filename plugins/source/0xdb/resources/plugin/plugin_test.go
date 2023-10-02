@@ -13,7 +13,7 @@ import (
 
 	"github.com/apache/arrow/go/v14/arrow"
 	"github.com/apache/arrow/go/v14/arrow/array"
-	"github.com/cloudquery/cloudquery/plugins/source/postgresql/client"
+	"github.com/cloudquery/cloudquery/plugins/source/0xdb/client"
 	"github.com/cloudquery/plugin-sdk/v4/message"
 	"github.com/cloudquery/plugin-sdk/v4/plugin"
 	"github.com/cloudquery/plugin-sdk/v4/scalar"
