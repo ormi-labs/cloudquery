@@ -159,7 +159,8 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 		lastSynced      uint64
 		enabledEntities []string
 		missedBlocks    string
-		prevBlock       = c.pluginSpec.Block.Start
+		// decrement by one to check if start block itself is missing
+		prevBlock = c.pluginSpec.Block.Start - 1
 	)
 
 	for i, table := range tables {
@@ -251,7 +252,7 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 	}
 
 	syncReport[idxSyncID].Value = "sync_" + time.Now().Format("Jan-2-15:04:05")
-	syncReport[idxTimestamp].Value = time.Now().UTC()
+	syncReport[idxTimestamp].Value = time.Now()
 	syncReport[idxStartBlock].Value = c.pluginSpec.Block.Start
 	syncReport[idxEnabledEntities].Value = strings.Join(enabledEntities, ",")
 

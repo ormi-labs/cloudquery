@@ -8,6 +8,7 @@ import (
 	"github.com/cloudquery/plugin-sdk/v4/schema"
 	"os"
 	"path/filepath"
+	"strconv"
 	"time"
 )
 
@@ -147,11 +148,12 @@ func (s syncColumns) writeToFile(dir string, ext string) error {
 
 		for i := range s {
 			header[i] = s[i].Name
-
 			switch s[i].Name {
 			// required format is YYYY-MM-DD HH:MM[:SS[.SSSSSS]] or YYYY/MM/DD HH:MM[:SS[.SSSSSS]]'
 			case syncReport[idxTimestamp].Name:
 				record[i] = s[i].Value.(time.Time).Format("2006-01-02T15:04")
+			case syncReport[idxStartBlock].Name:
+				record[i] = strconv.FormatUint(s[i].Value.(uint64), 10)
 			default:
 				record[i] = fmt.Sprintf("%s", s[i].Value)
 			}
