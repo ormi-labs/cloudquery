@@ -356,7 +356,9 @@ func (c *Client) syncBlocks(ctx context.Context, tx pgx.Tx, tables []*schema.Tab
 		syncReport[idxTimeElapsed].Value = FmtElapsedTime(start, time.Now(), " ", false)
 		syncReport[idxLastSyncedBlock].Value = strconv.FormatUint(lastSynced, 10)
 		syncReport[idxMissedBlocks].Value = missedBlocks
-		syncReport.writeToFile(c.pluginSpec.ReportDir, c.pluginSpec.ReportFmt)
+		if err := syncReport.writeToFile(c.pluginSpec.ReportDir, c.pluginSpec.ReportFmt); err != nil {
+			return err
+		}
 	}
 
 	return nil
