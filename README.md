@@ -11,7 +11,7 @@ for further analysis.
 
 ### Ormi Labs Changes
 
-To run it with changes made to `source/postgresql` and `destication/bigquery` build selected plugin with
+To run it with changes made to `source/0xdb` and `destication/bigquery` build selected plugin with
 
 ```shell
 ./scripts/build.sh
@@ -23,54 +23,13 @@ Examples:
 ```yaml
 kind: source
 spec:
-  name: "postgresql"
+  name: "0xdb"
   # registry: "github"
   # path: "cloudquery/postgresql"
   registry: "local"
   path: "../bin/postgresql"
-  version: "v3.0.0"
-  tables: ["block","transaction","transaction_log","trace"]
-  destinations: ["bigquery"]
-  spec:
-    # Provide connection string. For ex.: postgres://user:pass@host:port/db?sslmode=verify-ca&pool_max_conns=10
-    # Available options:
-    # - pool_max_conns: integer greater than 0
-    # - pool_min_conns: integer 0 or greater
-    # - pool_max_conn_lifetime: duration string
-    # - pool_max_conn_idle_time: duration string
-    # - pool_health_check_period: duration string
-    # - pool_max_conn_lifetime_jitter: duration string
-    connection_string: "postgresql://user:pass@host:port/db?sslmode=disable"
-    # Optional parameters:
-    # cdc_id: "postgresql" # Set to a unique string per source to enable Change Data Capture mode (logical replication, or CDC)
-    pgx_log_level: error
-    rows_per_record: 1
-    # "block" or "table", default is table.
-    # If "block" is set, 'block' section is read in.
-    sync_mode: "block"
-    report_dir: "."
-    report_fmt: "csv" # "csv" or "json", default is csv
-    block:
-      start: 0 # block number from start, 0 points to the very first block
-      limit: 0 # limit number of blocks, default 0 which is no limitation at all
-      # Index of the table in 'tables' list starting from 0.
-      # This is necessary because actual tables/views may be named differently.
-      table_idx: 0
-      # Other entities such as: transaction,log,token_transfer,trace,contract,token
-      # see https://ethereum-etl.readthedocs.io/en/latest/commands/
-      entities:
-        - name: "transaction"
-          table_idx: 1
-          enable: true
-        - name: "log"
-          table_idx: 2
-          enable: true
-        - name: "trace"
-          table_idx: 3
-          enable: true
-        - name: "token_transfer"
-          # table_idx:
-          enable: false
+  version: "v1.0.0"
+  # truncated 
 ```
 
 ```yaml
@@ -80,10 +39,7 @@ spec:
   registry: "local"
   path: "../bin/bigquery"
   version: "v3.3.0"
-  write_mode: "append"
-  spec:
-    project_id: temporal-wares-368022
-    dataset_id: ethblocks_svr6_dev
+  # truncated 
 ```
 
 Run from **_cloudquery/cli_** directory the following command:
